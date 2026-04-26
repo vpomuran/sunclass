@@ -188,12 +188,14 @@ The tool will:
 
 ### Running on a schedule (automated)
 
+When running on a schedule the tool has no terminal to print to, so pass `--quiet` to suppress the stdout notifier. Everything is already captured in `data/sunclass.log`.
+
 **Windows — Task Scheduler:**
 1. Open Task Scheduler → Create Basic Task
 2. Set trigger: Daily, repeat every 6 hours
 3. Action: Start a program
    - Program: `C:\path\to\sunclass\.venv\Scripts\python.exe`
-   - Arguments: `main.py`
+   - Arguments: `main.py --quiet`
    - Start in: `C:\path\to\sunclass`
 
 **Linux — cron:**
@@ -202,7 +204,7 @@ crontab -e
 ```
 Add this line (runs every 6 hours):
 ```
-0 */6 * * * cd /home/user/sunclass && .venv/bin/python main.py >> data/cron.log 2>&1
+0 */6 * * * cd /home/user/sunclass && .venv/bin/python main.py --quiet >> /dev/null 2>&1
 ```
 
 ---
@@ -217,6 +219,7 @@ Add this line (runs every 6 hours):
 | `python main.py --log-level DEBUG` | Verbose output, useful for troubleshooting |
 | `python main.py --env-file /path/to/.env` | Use a different configuration file |
 | `python main.py --debug-browser` | Open a visible browser window and save screenshots to `data/` — useful for diagnosing login failures |
+| `python main.py --quiet` | Suppress stdout output — use this in scheduled/cron runs where everything is already in the log file |
 
 ---
 

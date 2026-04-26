@@ -55,6 +55,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help=(
+            "Suppress stdout output. Use when running from a scheduler or cron job — "
+            "everything is already captured in the log file. Telegram alerts are still sent."
+        ),
+    )
+    parser.add_argument(
         "--bootstrap",
         action="store_true",
         help=(
@@ -125,6 +133,9 @@ def main() -> None:
     )
 
     state = StateStore(settings.state_db_path)
+    pruned = state.prune_old_alerts()
+    if pruned:
+        logger.info("Pruned %d stale alert record(s) older than 90 days.", pruned)
 
     # ── Fetch iCal feeds ────────────────────────────────────────────────────
     ical_reservations = []
@@ -203,6 +214,12 @@ def main() -> None:
         logger.error("Notifier configuration error: %s", e)
         state.close()
         sys.exit(EXIT_CONFIG_ERROR)
+
+    if args.quiet:
+        notifiers = [n for n in notifiers if n.channel_name != "stdout"]
+        logger.info("--quiet: stdout notifier suppressed.")
+        if not notifiers:
+            logger.warning("--quiet suppressed all notifiers (no channels remain). Nothing will be sent.")
 
     for notifier in notifiers:
         now = datetime.utcnow()

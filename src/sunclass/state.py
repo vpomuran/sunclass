@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -79,6 +79,13 @@ class StateStore:
                         detail=d.detail,
                     )
                 )
+
+    def prune_old_alerts(self, older_than_days: int = 90) -> int:
+        """Delete alert records older than `older_than_days`. Returns the number of rows removed."""
+        cutoff = (datetime.utcnow() - timedelta(days=older_than_days)).isoformat()
+        cur = self._conn.execute("DELETE FROM alerts WHERE sent_at < ?", (cutoff,))
+        self._conn.commit()
+        return cur.rowcount
 
     def close(self) -> None:
         self._conn.close()
