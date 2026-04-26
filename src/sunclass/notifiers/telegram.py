@@ -51,14 +51,28 @@ class TelegramNotifier(BaseNotifier):
                     json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
                     timeout=10,
                 )
-                resp.raise_for_status()
-                logger.info(
-                    "Telegram alert sent: %s (%d days)",
-                    d.kind, _days_until(d),
-                )
             except requests.RequestException as e:
-                logger.error("Telegram send failed: %s", e)
+                logger.error("Telegram request failed (network): %s", e)
                 raise
+
+            if not resp.ok:
+                # Telegram always returns JSON with "description" explaining the failure
+                try:
+                    body = resp.json()
+                    description = body.get("description", "no description")
+                    error_code = body.get("error_code", resp.status_code)
+                except Exception:
+                    description = resp.text or "empty response"
+                    error_code = resp.status_code
+                logger.error(
+                    "Telegram API error %s: %s", error_code, description
+                )
+                resp.raise_for_status()
+
+            logger.info(
+                "Telegram alert sent: %s (%d days)",
+                d.kind, _days_until(d),
+            )
 
     @staticmethod
     def _format(d: Discrepancy, urgent: bool) -> str:
