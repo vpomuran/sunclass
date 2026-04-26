@@ -13,7 +13,6 @@ _EMOJI = {
     DiscrepancyKind.ONLY_IN_ICAL: "🔴",
     DiscrepancyKind.ONLY_IN_SCRAPE: "🟠",
     DiscrepancyKind.DATE_MISMATCH: "🟡",
-    DiscrepancyKind.GUEST_MISMATCH: "🟡",
     DiscrepancyKind.SUSPICIOUS_MATCH: "⚠️",
 }
 

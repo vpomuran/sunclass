@@ -29,3 +29,6 @@ sunclass-monitor = "sunclass.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sunclass"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
