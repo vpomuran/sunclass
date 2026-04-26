@@ -1,0 +1,47 @@
+# ── Secrets ─────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Python runtime ──────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ── Build / packaging ────────────────────────────────────────
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Testing / coverage ──────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ── Type checkers ────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+
+# ── Runtime data (state DB, logs) ────────────────────────────
+data/*
+!data/.gitkeep
+
+# ── Playwright ───────────────────────────────────────────────
+playwright-report/
+test-results/
+
+# ── Claude Code local config ─────────────────────────────────
+.claude/settings.local.json
+
+# ── OS / editor ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
