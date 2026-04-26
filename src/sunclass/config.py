@@ -31,6 +31,10 @@ class Settings:
     log_file_path: str
     log_level: str
 
+    # Playwright debug options
+    playwright_headless: bool    # False = show browser window
+    playwright_slowmo: int       # milliseconds between each action (0 = no delay)
+
     @classmethod
     def from_env(cls, env_file: str = ".env") -> Settings:
         if Path(env_file).exists():
@@ -78,4 +82,6 @@ class Settings:
             state_db_path=os.getenv("STATE_DB_PATH", "data/state.db"),
             log_file_path=os.getenv("LOG_FILE_PATH", "data/sunclass.log"),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
+            playwright_headless=os.getenv("PLAYWRIGHT_HEADLESS", "true").lower() != "false",
+            playwright_slowmo=int(os.getenv("PLAYWRIGHT_SLOWMO", "0")),
         )

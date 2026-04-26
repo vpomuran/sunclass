@@ -50,6 +50,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=".env",
         help="Path to .env file (default: .env).",
     )
+    parser.add_argument(
+        "--debug-browser",
+        action="store_true",
+        help=(
+            "Show the Playwright browser window and slow down each action (500ms). "
+            "Saves screenshots to data/ after login and after loading the table. "
+            "Useful for diagnosing scraper failures."
+        ),
+    )
     return parser
 
 
@@ -63,6 +72,11 @@ def main() -> None:
     except (KeyError, ValueError) as e:
         print(f"CONFIG ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_CONFIG_ERROR)
+
+    # --debug-browser overrides headless/slowmo from .env
+    if args.debug_browser:
+        settings.playwright_headless = False
+        settings.playwright_slowmo = 500
 
     configure_logging(
         args.log_level or settings.log_level,

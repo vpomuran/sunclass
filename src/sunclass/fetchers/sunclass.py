@@ -65,6 +65,9 @@ class SunclassScraper(BaseFetcher):
         self._password = settings.sunclass_password
         self._timeout = settings.scraper_timeout_ms
         self._property_label = settings.property_label
+        self._headless = settings.playwright_headless
+        self._slowmo = settings.playwright_slowmo
+        self._screenshot_dir = settings.state_db_path.replace("state.db", "")
 
     @property
     def source_name(self) -> str:
@@ -96,8 +99,13 @@ class SunclassScraper(BaseFetcher):
                 "Playwright not installed. Run: pip install playwright && playwright install chromium"
             ) from e
 
+        headless = self._headless
+        slowmo = self._slowmo
+        if not headless:
+            logger.info("Playwright debug mode: browser window visible, slow_mo=%dms", slowmo)
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=headless, slow_mo=slowmo)
             try:
                 context = browser.new_context()
                 page = context.new_page()
@@ -106,17 +114,29 @@ class SunclassScraper(BaseFetcher):
             except FetchError:
                 raise
             except Exception as e:
+                self._save_screenshot(page, "error")
                 raise FetchError(f"Scrape error: {e}") from e
             finally:
                 browser.close()
+
+    def _save_screenshot(self, page, label: str) -> None:
+        """Save a screenshot to data/ for post-mortem debugging."""
+        from pathlib import Path
+        from datetime import datetime
+        path = Path(self._screenshot_dir) / f"screenshot_{label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        try:
+            page.screenshot(path=str(path), full_page=True)
+            logger.info("Screenshot saved: %s", path)
+        except Exception as e:
+            logger.warning("Could not save screenshot: %s", e)
 
     def _login(self, page) -> None:
         logger.info("Logging in to Sunclass portal")
         page.goto(self._login_url, timeout=self._timeout)
 
         # Use type=submit rather than button text — text varies by browser language (i18n)
-        page.wait_for_selector('input[name="email"]', timeout=self._timeout)
-        page.fill('input[name="email"]', self._email)
+        page.wait_for_selector('input[name="login"]', timeout=self._timeout)
+        page.fill('input[name="login"]', self._email)
         page.fill('input[name="password"]', self._password)
         page.click('button[type="submit"]')
 
@@ -127,6 +147,8 @@ class SunclassScraper(BaseFetcher):
             page.goto(self._reservations_url, timeout=self._timeout)
 
         logger.info("Sunclass login OK — at %s", page.url)
+        if not self._headless:
+            self._save_screenshot(page, "after_login")
 
     def _scrape_reservations(self, page) -> list[Reservation]:
         logger.info("Waiting for reservation table")
@@ -136,6 +158,8 @@ class SunclassScraper(BaseFetcher):
             "table.product-overview tbody tr", timeout=self._timeout
         )
         rows = page.query_selector_all("table.product-overview tbody tr")
+        if not self._headless:
+            self._save_screenshot(page, "reservations_table")
 
         reservations: list[Reservation] = []
         for row in rows:
