@@ -140,10 +140,23 @@ class SunclassScraper(BaseFetcher):
         page.fill('input[name="password"]', self._password)
         page.click('button[type="submit"]')
 
+        # Wait for the page to settle before checking outcome
         try:
-            page.wait_for_url("**/reservations**", timeout=self._timeout)
+            page.wait_for_load_state("networkidle", timeout=self._timeout)
         except Exception:
-            logger.debug("No direct redirect to /reservations; navigating manually")
+            pass  # networkidle may not fire on all SPAs; URL check below is the real guard
+
+        # Still on the login page → credentials were rejected
+        if "/login" in page.url:
+            self._save_screenshot(page, "login_failed")
+            raise FetchError(
+                "Login failed — still on login page after submitting credentials. "
+                "Check SUNCLASS_EMAIL and SUNCLASS_PASSWORD in .env"
+            )
+
+        # Login succeeded; navigate to reservations if the portal landed elsewhere
+        if "/reservations" not in page.url:
+            logger.debug("Post-login URL is %s; navigating to reservations", page.url)
             page.goto(self._reservations_url, timeout=self._timeout)
 
         logger.info("Sunclass login OK — at %s", page.url)
