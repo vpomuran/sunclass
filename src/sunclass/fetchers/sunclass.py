@@ -114,12 +114,11 @@ class SunclassScraper(BaseFetcher):
         logger.info("Logging in to Sunclass portal")
         page.goto(self._login_url, timeout=self._timeout)
 
-        # Confirmed from live page: standard email+password form, submit = "Inloggen"
+        # Use type=submit rather than button text — text varies by browser language (i18n)
         page.wait_for_selector('input[name="email"]', timeout=self._timeout)
         page.fill('input[name="email"]', self._email)
         page.fill('input[name="password"]', self._password)
-        # Use button text rather than type=submit to avoid hitting the wrong button
-        page.click('button:has-text("Inloggen")')
+        page.click('button[type="submit"]')
 
         try:
             page.wait_for_url("**/reservations**", timeout=self._timeout)
