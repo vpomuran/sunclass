@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from .config import Settings
 from .fetchers.base import FetchError
@@ -11,7 +11,7 @@ from .fetchers.ical import ICalFetcher
 from .fetchers.sunclass import SunclassScraper
 from .comparator import match_reservations
 from .logging_setup import configure_logging
-from .models import AlertRecord
+from .models import AlertRecord, Discrepancy, DiscrepancyKind
 from .notifiers import build_notifiers
 from .notifiers.base import NotifierError
 from .state import StateStore
@@ -28,11 +28,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sunclass-monitor",
         description="Compare Sunclass reservations against iCal feeds and report discrepancies.",
-    )
-    parser.add_argument(
-        "--bootstrap",
-        action="store_true",
-        help="Mark all current reservations as baseline (suppresses alerts on first run).",
     )
     parser.add_argument(
         "--dry-run",
@@ -59,21 +54,58 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "Useful for diagnosing scraper failures."
         ),
     )
+    parser.add_argument(
+        "--bootstrap",
+        action="store_true",
+        help=(
+            "RARELY NEEDED. Mark all current discrepancies as already seen, "
+            "suppressing the one-time batch of informational (>30 day) alerts. "
+            "Has no effect on critical alerts (≤30 days) which always fire. "
+            "Only use this if you are flooded with low-priority alerts you do not care about."
+        ),
+    )
     return parser
+
+
+def _earliest_checkin(d: Discrepancy) -> date:
+    return min(r.check_in for r in d.reservations)
+
+
+def _split_by_urgency(
+    discrepancies: list[Discrepancy], horizon: date
+) -> tuple[list[Discrepancy], list[Discrepancy]]:
+    """
+    Split into (critical, informational).
+
+    Critical: check_in within the horizon AND missing from Sunclass (the dangerous case).
+    Informational: everything else — further out, or present in Sunclass but not iCal.
+    """
+    critical, informational = [], []
+    for d in discrepancies:
+        checkin = _earliest_checkin(d)
+        is_urgent_window = checkin <= horizon
+        is_missing_from_sunclass = d.kind in (
+            DiscrepancyKind.ONLY_IN_ICAL,
+            DiscrepancyKind.DATE_MISMATCH,
+            DiscrepancyKind.SUSPICIOUS_MATCH,
+        )
+        if is_urgent_window and is_missing_from_sunclass:
+            critical.append(d)
+        else:
+            informational.append(d)
+    return critical, informational
 
 
 def main() -> None:
     parser = _build_arg_parser()
     args = parser.parse_args()
 
-    # Load config
     try:
         settings = Settings.from_env(env_file=args.env_file)
     except (KeyError, ValueError) as e:
         print(f"CONFIG ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_CONFIG_ERROR)
 
-    # --debug-browser overrides headless/slowmo from .env
     if args.debug_browser:
         settings.playwright_headless = False
         settings.playwright_slowmo = 500
@@ -84,6 +116,13 @@ def main() -> None:
     )
 
     logger.info("=== sunclass-monitor starting ===")
+
+    today = date.today()
+    horizon = today + timedelta(days=settings.critical_window_days)
+    logger.info(
+        "Checking future reservations from %s — critical window: %s to %s",
+        today, today, horizon,
+    )
 
     state = StateStore(settings.state_db_path)
 
@@ -108,39 +147,50 @@ def main() -> None:
         logger.error("Sunclass scrape failed: %s", e)
         sys.exit(EXIT_FETCH_ERROR)
 
+    # ── Filter to future reservations only ─────────────────────────────────
+    ical_future = [r for r in ical_reservations if r.check_in >= today]
+    scraped_future = [r for r in scraped if r.check_in >= today]
+
     logger.info(
-        "Fetched %d iCal reservation(s) and %d Sunclass reservation(s).",
-        len(ical_reservations),
-        len(scraped),
+        "After filtering to future: %d iCal interval(s), %d Sunclass reservation(s).",
+        len(ical_future), len(scraped_future),
     )
 
-    # ── Bootstrap mode ──────────────────────────────────────────────────────
+    # ── Bootstrap mode (escape hatch, rarely needed) ────────────────────────
     if args.bootstrap:
-        state.bootstrap_baseline(ical_reservations + scraped)
-        logger.info(
-            "Bootstrap complete. %d reservation(s) marked as baseline.",
-            len(ical_reservations) + len(scraped),
+        all_reservations = ical_future + scraped_future
+        state.bootstrap_baseline(all_reservations)
+        logger.warning(
+            "Bootstrap: %d future reservation(s) marked as baseline. "
+            "Note: critical (≤%d day) alerts will still fire on the next run.",
+            len(all_reservations), settings.critical_window_days,
         )
         state.close()
         sys.exit(EXIT_OK)
 
     # ── Compare ─────────────────────────────────────────────────────────────
     discrepancies = match_reservations(
-        ical_reservations,
-        scraped,
+        ical_future,
+        scraped_future,
         date_tolerance_days=settings.date_tolerance_days,
     )
 
     if not discrepancies:
-        logger.info("No discrepancies found. All reservations are consistent.")
+        logger.info("No discrepancies found. All future reservations are consistent.")
         state.close()
         sys.exit(EXIT_OK)
 
-    logger.warning("Found %d discrepancy(s).", len(discrepancies))
-    for d in discrepancies:
-        logger.warning("  %s: %s", d.kind, d.detail)
+    critical, informational = _split_by_urgency(discrepancies, horizon)
 
-    # ── Dry run: report but don't send ─────────────────────────────────────
+    logger.warning(
+        "Found %d discrepancy(s): %d critical (≤%dd), %d informational.",
+        len(discrepancies), len(critical), settings.critical_window_days, len(informational),
+    )
+    for d in sorted(critical, key=_earliest_checkin):
+        logger.warning("  [CRITICAL] %s: %s", d.kind, d.detail)
+    for d in sorted(informational, key=_earliest_checkin):
+        logger.info("  [INFO] %s: %s", d.kind, d.detail)
+
     if args.dry_run:
         logger.info("Dry-run mode: skipping notifications.")
         state.close()
@@ -155,33 +205,45 @@ def main() -> None:
         sys.exit(EXIT_CONFIG_ERROR)
 
     for notifier in notifiers:
-        unsent = state.get_unsent(discrepancies, notifier.channel_name)
-        if not unsent:
-            logger.info("Channel '%s': all discrepancies already reported.", notifier.channel_name)
-            continue
+        now = datetime.utcnow()
 
-        try:
-            notifier.send(unsent)
-            now = datetime.utcnow()
-            for d in unsent:
-                state.mark_alerted(
-                    AlertRecord(
-                        fingerprint=d.fingerprint,
-                        sent_at=now,
-                        channel=notifier.channel_name,
-                        discrepancy_kind=d.kind,
-                        detail=d.detail,
-                    )
+        # Critical: always send — bypass idempotency (guest may arrive soon)
+        if critical:
+            try:
+                notifier.send(critical, urgent=True)
+                logger.info(
+                    "Channel '%s': sent %d critical alert(s).",
+                    notifier.channel_name, len(critical),
                 )
-            logger.info(
-                "Channel '%s': sent %d alert(s).", notifier.channel_name, len(unsent)
-            )
-        except Exception as e:
-            logger.error(
-                "Channel '%s' failed to send: %s — will retry on next run.",
-                notifier.channel_name,
-                e,
-            )
+            except Exception as e:
+                logger.error(
+                    "Channel '%s' failed on critical alerts: %s", notifier.channel_name, e
+                )
+
+        # Informational: send once, then suppress repeats
+        unsent_info = state.get_unsent(informational, notifier.channel_name)
+        if unsent_info:
+            try:
+                notifier.send(unsent_info, urgent=False)
+                for d in unsent_info:
+                    state.mark_alerted(
+                        AlertRecord(
+                            fingerprint=d.fingerprint,
+                            sent_at=now,
+                            channel=notifier.channel_name,
+                            discrepancy_kind=d.kind,
+                            detail=d.detail,
+                        )
+                    )
+                logger.info(
+                    "Channel '%s': sent %d informational alert(s).",
+                    notifier.channel_name, len(unsent_info),
+                )
+            except Exception as e:
+                logger.error(
+                    "Channel '%s' failed on informational alerts: %s — will retry.",
+                    notifier.channel_name, e,
+                )
 
     state.close()
     sys.exit(EXIT_DISCREPANCY)

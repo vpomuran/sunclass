@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 import requests
 
@@ -9,12 +10,17 @@ from ..models import Discrepancy, DiscrepancyKind
 
 logger = logging.getLogger(__name__)
 
-_EMOJI = {
-    DiscrepancyKind.ONLY_IN_ICAL: "🔴",
-    DiscrepancyKind.ONLY_IN_SCRAPE: "🟠",
-    DiscrepancyKind.DATE_MISMATCH: "🟡",
-    DiscrepancyKind.SUSPICIOUS_MATCH: "⚠️",
+_KIND_LABEL = {
+    DiscrepancyKind.ONLY_IN_ICAL:    "MISSING FROM SUNCLASS",
+    DiscrepancyKind.ONLY_IN_SCRAPE:  "Not in iCal feeds",
+    DiscrepancyKind.DATE_MISMATCH:   "Date mismatch",
+    DiscrepancyKind.SUSPICIOUS_MATCH: "Suspicious match — needs review",
 }
+
+
+def _days_until(d: Discrepancy) -> int:
+    checkin = min(r.check_in for r in d.reservations)
+    return (checkin - date.today()).days
 
 
 class TelegramNotifier(BaseNotifier):
@@ -30,14 +36,15 @@ class TelegramNotifier(BaseNotifier):
         if not self._settings.telegram_chat_id:
             raise NotifierError("TELEGRAM_CHAT_ID is not set")
 
-    def send(self, discrepancies: list[Discrepancy]) -> None:
+    def send(self, discrepancies: list[Discrepancy], urgent: bool = False) -> None:
         self._validate()
         token = self._settings.telegram_bot_token
         chat_id = self._settings.telegram_chat_id
         api_url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-        for d in discrepancies:
-            text = self._format(d)
+        sorted_disc = sorted(discrepancies, key=_days_until)
+        for d in sorted_disc:
+            text = self._format(d, urgent)
             try:
                 resp = requests.post(
                     api_url,
@@ -45,22 +52,31 @@ class TelegramNotifier(BaseNotifier):
                     timeout=10,
                 )
                 resp.raise_for_status()
-                logger.info("Telegram alert sent for fingerprint %s", d.fingerprint[:8])
+                logger.info(
+                    "Telegram alert sent: %s (%d days)",
+                    d.kind, _days_until(d),
+                )
             except requests.RequestException as e:
                 logger.error("Telegram send failed: %s", e)
                 raise
 
     @staticmethod
-    def _format(d: Discrepancy) -> str:
-        emoji = _EMOJI.get(d.kind, "❓")
+    def _format(d: Discrepancy, urgent: bool) -> str:
+        days = _days_until(d)
+        kind_label = _KIND_LABEL.get(d.kind, d.kind)
+
+        if urgent:
+            header = f"🚨 *URGENT — {days} day(s) until arrival*"
+        else:
+            header = f"ℹ️ *Info — {days} day(s) until arrival*"
+
         lines = [
-            f"{emoji} *Reservation discrepancy detected*",
-            f"*Type:* `{d.kind}`",
-            f"*Detail:* {d.detail}",
+            header,
+            f"*{kind_label}*",
+            f"{d.detail}",
         ]
         for r in d.reservations:
-            lines.append(
-                f"  • `{r.source}`: {r.guest_name} | {r.check_in} → {r.check_out}"
-            )
+            name = r.guest_name or "n/a"
+            lines.append(f"  • `{r.source}`: {name} | {r.check_in} → {r.check_out}")
         lines.append(f"_Detected: {d.detected_at.strftime('%Y-%m-%d %H:%M UTC')}_")
         return "\n".join(lines)

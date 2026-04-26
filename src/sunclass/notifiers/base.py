@@ -17,8 +17,13 @@ class BaseNotifier(ABC):
         self._settings = settings
 
     @abstractmethod
-    def send(self, discrepancies: list[Discrepancy]) -> None:
-        """Send notifications. Raises NotifierError on config failure."""
+    def send(self, discrepancies: list[Discrepancy], urgent: bool = False) -> None:
+        """
+        Send notifications.
+        urgent=True: discrepancies within the critical window — format prominently.
+        urgent=False: informational, further-out discrepancies.
+        Raises NotifierError on config failure.
+        """
         ...
 
     @property
