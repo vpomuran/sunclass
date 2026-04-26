@@ -105,6 +105,8 @@ ICAL_LABELS=Booking.com,Airbnb
 
 SUNCLASS_EMAIL=you@example.com
 SUNCLASS_PASSWORD=secret
+SUNCLASS_LOGIN_URL=https://mijn.sunclassdurbuy.com/login
+SUNCLASS_URL=https://mijn.sunclassdurbuy.com/reservations
 
 NOTIFIER_CHANNELS=telegram,stdout
 
@@ -112,16 +114,36 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
 TELEGRAM_CHAT_ID=-100123456789
 ```
 
+### Required settings
+
 | Setting | What to put here |
 |---|---|
 | `ICAL_URLS` | Your iCal feed URLs, separated by commas. [How to find them ↓](#finding-your-ical-urls) |
-| `ICAL_SOURCES` | Labels for each URL — use `ical_bookingcom` and/or `ical_airbnb` |
+| `ICAL_SOURCES` | Internal labels for each URL — use `ical_bookingcom` and/or `ical_airbnb` |
 | `ICAL_LABELS` | Human-readable names shown in alerts, e.g. `Booking.com,Airbnb` |
 | `SUNCLASS_EMAIL` | Your login email for mijn.sunclassdurbuy.com |
 | `SUNCLASS_PASSWORD` | Your login password for mijn.sunclassdurbuy.com |
-| `NOTIFIER_CHANNELS` | Leave as `telegram,stdout` to get both Telegram messages and screen output |
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token. [How to get one ↓](#setting-up-telegram) |
 | `TELEGRAM_CHAT_ID` | The chat or group where alerts are sent. [How to find it ↓](#setting-up-telegram) |
+
+### Optional settings (defaults shown)
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SUNCLASS_LOGIN_URL` | `https://mijn.sunclassdurbuy.com/login` | Login page URL — change only if the portal moves |
+| `SUNCLASS_URL` | `https://mijn.sunclassdurbuy.com/reservations` | Reservations page URL |
+| `SCRAPER_TIMEOUT_MS` | `30000` | Browser wait timeout in milliseconds |
+| `PROPERTY_LABEL` | _(empty)_ | Label added to alerts to identify the property (useful if you manage multiple) |
+| `NOTIFIER_CHANNELS` | `telegram,stdout` | Comma-separated list of alert channels: `telegram` and/or `stdout` |
+| `CRITICAL_WINDOW_DAYS` | `30` | Discrepancies with check-in within this many days are treated as critical and re-alerted on every run |
+| `DATE_TOLERANCE_DAYS` | `0` | Allow ±N days when fuzzy-matching dates across sources (`0` = exact match only) |
+| `ICAL_FETCH_TIMEOUT_SECONDS` | `30` | HTTP timeout when downloading iCal feeds |
+| `CANONICAL_TZ` | `Europe/Brussels` | Timezone used to normalise datetime values from iCal feeds |
+| `STATE_DB_PATH` | `data/state.db` | Path to the SQLite database that tracks which alerts have been sent |
+| `LOG_FILE_PATH` | `data/sunclass.log` | Path to the rotating log file |
+| `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+| `PLAYWRIGHT_HEADLESS` | `true` | Set to `false` to open a visible browser window (useful for debugging login issues) |
+| `PLAYWRIGHT_SLOWMO` | `0` | Slow down each browser action by this many milliseconds |
 
 ---
 
@@ -194,6 +216,7 @@ Add this line (runs every 6 hours):
 | `python main.py --bootstrap` | Mark all current bookings as baseline (run once on setup) |
 | `python main.py --log-level DEBUG` | Verbose output, useful for troubleshooting |
 | `python main.py --env-file /path/to/.env` | Use a different configuration file |
+| `python main.py --debug-browser` | Open a visible browser window and save screenshots to `data/` — useful for diagnosing login failures |
 
 ---
 
@@ -246,8 +269,8 @@ You are running Python from outside the virtual environment. Make sure to use `.
 **"SUNCLASS_EMAIL is not set" or similar config error**
 Your `.env` file is missing or has a typo. Make sure the file is named exactly `.env` (not `.env.txt`) and is in the same folder as `main.py`.
 
-**"Sunclass scrape failed"**
-The tool could not log in to the Sunclass portal. Check your `SUNCLASS_EMAIL` and `SUNCLASS_PASSWORD` in `.env`. Run with `--log-level DEBUG` to see more detail.
+**"Sunclass scrape failed" / login failure**
+The tool could not log in to the Sunclass portal. Check `SUNCLASS_EMAIL`, `SUNCLASS_PASSWORD`, and `SUNCLASS_LOGIN_URL` in `.env`. Run with `--debug-browser` to open a visible browser window and see screenshots saved to `data/` that show exactly where it fails.
 
 **"Failed to fetch iCal"**
 One of your iCal URLs may have changed or expired. Log in to Booking.com or Airbnb and copy a fresh URL.
@@ -267,5 +290,5 @@ sunclass/
 ├── requirements.txt     ← Python dependencies
 ├── src/sunclass/        ← application source code
 ├── tests/               ← automated tests
-└── data/                ← runtime data: logs and state database
+└── data/                ← runtime data: logs, state database, debug screenshots
 ```
