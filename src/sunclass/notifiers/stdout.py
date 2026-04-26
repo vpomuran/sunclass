@@ -1,24 +1,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 
 from .base import BaseNotifier
-from ..models import Discrepancy, DiscrepancyKind
+from ._format import KIND_LABEL, days_until
+from ..models import Discrepancy
 
 logger = logging.getLogger(__name__)
-
-_KIND_LABEL = {
-    DiscrepancyKind.ONLY_IN_ICAL:     "MISSING FROM SUNCLASS",
-    DiscrepancyKind.ONLY_IN_SCRAPE:   "not in iCal feeds",
-    DiscrepancyKind.DATE_MISMATCH:    "DATE MISMATCH",
-    DiscrepancyKind.SUSPICIOUS_MATCH: "suspicious match — needs review",
-}
-
-
-def _days_until(d: Discrepancy) -> int:
-    checkin = min(r.check_in for r in d.reservations)
-    return (checkin - date.today()).days
 
 
 class StdoutNotifier(BaseNotifier):
@@ -33,7 +21,7 @@ class StdoutNotifier(BaseNotifier):
 
     @staticmethod
     def _build_report(discrepancies: list[Discrepancy], urgent: bool) -> str:
-        sorted_disc = sorted(discrepancies, key=_days_until)
+        sorted_disc = sorted(discrepancies, key=days_until)
         count = len(sorted_disc)
         border = "=" * 60
 
@@ -45,9 +33,8 @@ class StdoutNotifier(BaseNotifier):
         lines = [border, title, border]
 
         for i, d in enumerate(sorted_disc, 1):
-            days = _days_until(d)
-            kind_label = _KIND_LABEL.get(d.kind, d.kind)
-            lines.append(f"\n[{i}/{count}] {kind_label} — {days} day(s) until arrival")
+            kind_label = KIND_LABEL.get(d.kind, d.kind)
+            lines.append(f"\n[{i}/{count}] {kind_label} — {days_until(d)} day(s) until arrival")
             lines.append(f"  {d.detail}")
             for r in d.reservations:
                 name = r.guest_name or "n/a"

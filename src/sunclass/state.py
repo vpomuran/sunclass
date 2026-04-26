@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     fingerprint      TEXT NOT NULL,
     channel          TEXT NOT NULL,
     sent_at          TEXT NOT NULL,
+    -- audit trail: not queried by the app, but readable via SQLite browser
     discrepancy_kind TEXT NOT NULL,
     detail           TEXT NOT NULL,
     PRIMARY KEY (fingerprint, channel)
@@ -57,18 +58,16 @@ class StateStore:
     ) -> list[Discrepancy]:
         return [d for d in discrepancies if not self.is_alerted(d.fingerprint, channel)]
 
-    def bootstrap_baseline(self, reservations: list[Reservation]) -> None:
+    def bootstrap_baseline(self, reservations: list[Reservation], channels: list[str]) -> None:
         """Mark all current reservations as already-alerted so first run is silent."""
         from .models import AlertRecord, DiscrepancyKind, Discrepancy
 
-        channels = ["telegram", "stdout"]
         now = datetime.utcnow()
         for r in reservations:
             d = Discrepancy(
                 kind=DiscrepancyKind.ONLY_IN_ICAL,
                 reservations=[r],
                 detail=f"baseline:{r.external_uid}",
-                detected_at=now,
             )
             for channel in channels:
                 self.mark_alerted(

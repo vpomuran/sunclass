@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
 
 
 class DiscrepancyKind(str, Enum):
@@ -23,11 +22,8 @@ class Reservation:
     check_out: date
     # Guest name is only available from the Sunclass scrape.
     # iCal feeds (Booking.com, Airbnb) only expose blocked date ranges.
-    guest_name: Optional[str]
-    num_guests: Optional[int]
-    property_label: Optional[str]
-    raw_summary: Optional[str]
-    fetched_at: datetime = field(default_factory=datetime.utcnow)
+    guest_name: str | None
+    property_label: str | None
 
     @property
     def canonical_key(self) -> tuple[date, date]:
@@ -51,7 +47,6 @@ class Discrepancy:
     kind: DiscrepancyKind
     reservations: list[Reservation]
     detail: str
-    detected_at: datetime = field(default_factory=datetime.utcnow)
 
     @property
     def fingerprint(self) -> str:

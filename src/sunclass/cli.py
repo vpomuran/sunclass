@@ -159,7 +159,7 @@ def main() -> None:
     # ── Bootstrap mode (escape hatch, rarely needed) ────────────────────────
     if args.bootstrap:
         all_reservations = ical_future + scraped_future
-        state.bootstrap_baseline(all_reservations)
+        state.bootstrap_baseline(all_reservations, settings.notifier_channels)
         logger.warning(
             "Bootstrap: %d future reservation(s) marked as baseline. "
             "Note: critical (≤%d day) alerts will still fire on the next run.",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ class Settings:
 
     sunclass_email: str
     sunclass_password: str
+    sunclass_login_url: str
     sunclass_url: str
     scraper_timeout_ms: int
     property_label: str | None
@@ -71,6 +72,9 @@ class Settings:
             ical_labels=labels,
             sunclass_email=os.environ["SUNCLASS_EMAIL"],
             sunclass_password=os.environ["SUNCLASS_PASSWORD"],
+            sunclass_login_url=os.getenv(
+                "SUNCLASS_LOGIN_URL", "https://mijn.sunclassdurbuy.com/login"
+            ),
             sunclass_url=os.getenv(
                 "SUNCLASS_URL", "https://mijn.sunclassdurbuy.com/reservations"
             ),

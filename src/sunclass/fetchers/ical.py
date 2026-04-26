@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import zoneinfo
 from datetime import date, datetime
 from typing import TYPE_CHECKING
@@ -16,12 +15,6 @@ if TYPE_CHECKING:
     from ..config import Settings
 
 logger = logging.getLogger(__name__)
-
-# Summaries that represent blocked/unavailable slots (not real bookings)
-_BLOCKED_PATTERNS = re.compile(
-    r"^(CLOSED|Not available|Blocked|Unavailable|Reserved|Owner)",
-    flags=re.IGNORECASE,
-)
 
 
 class ICalFetcher(BaseFetcher):
@@ -78,7 +71,6 @@ class ICalFetcher(BaseFetcher):
 
     def _parse_vevent(self, component) -> Reservation | None:
         uid = str(component.get("UID", "")).strip()
-        summary = str(component.get("SUMMARY", "")).strip()
 
         dtstart_prop = component.get("DTSTART")
         dtend_prop = component.get("DTEND")
@@ -98,9 +90,7 @@ class ICalFetcher(BaseFetcher):
             check_in=check_in,
             check_out=check_out,
             guest_name=None,       # not available in iCal feeds
-            num_guests=None,
             property_label=self._property_label,
-            raw_summary=summary,
         )
 
     def _to_date(self, dt) -> date:

@@ -7,24 +7,13 @@ from datetime import date
 import requests
 
 from .base import BaseNotifier, NotifierError
-from ..models import Discrepancy, DiscrepancyKind
+from ._format import KIND_LABEL, days_until
+from ..models import Discrepancy
 
 logger = logging.getLogger(__name__)
 
-_KIND_LABEL = {
-    DiscrepancyKind.ONLY_IN_ICAL:     "MISSING FROM SUNCLASS",
-    DiscrepancyKind.ONLY_IN_SCRAPE:   "Not in iCal feeds",
-    DiscrepancyKind.DATE_MISMATCH:    "Date mismatch",
-    DiscrepancyKind.SUSPICIOUS_MATCH: "Suspicious match — needs review",
-}
-
 # Telegram hard limit per message
 _MAX_MESSAGE_LEN = 4096
-
-
-def _days_until(d: Discrepancy) -> int:
-    checkin = min(r.check_in for r in d.reservations)
-    return (checkin - date.today()).days
 
 
 def _e(text: str) -> str:
@@ -103,7 +92,7 @@ class TelegramNotifier(BaseNotifier):
 
     @staticmethod
     def _build_report(discrepancies: list[Discrepancy], urgent: bool) -> str:
-        sorted_disc = sorted(discrepancies, key=_days_until)
+        sorted_disc = sorted(discrepancies, key=days_until)
         count = len(sorted_disc)
 
         if urgent:
@@ -114,10 +103,9 @@ class TelegramNotifier(BaseNotifier):
         lines = [header]
 
         for i, d in enumerate(sorted_disc, 1):
-            days = _days_until(d)
-            kind_label = _KIND_LABEL.get(d.kind, d.kind)
+            kind_label = KIND_LABEL.get(d.kind, d.kind)
             lines.append(
-                f"\n<b>[{i}/{count}] {_e(kind_label)}</b> — {days} day(s) until arrival"
+                f"\n<b>[{i}/{count}] {_e(kind_label)}</b> — {days_until(d)} day(s) until arrival"
             )
             lines.append(_e(d.detail))
             for r in d.reservations:

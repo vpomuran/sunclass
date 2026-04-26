@@ -4,6 +4,7 @@ import logging
 import re
 import time
 from datetime import date, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..fetchers.base import BaseFetcher, FetchError
@@ -59,7 +60,7 @@ class SunclassScraper(BaseFetcher):
     """
 
     def __init__(self, settings: Settings) -> None:
-        self._login_url = "https://mijn.sunclassdurbuy.com/login"
+        self._login_url = settings.sunclass_login_url
         self._reservations_url = settings.sunclass_url
         self._email = settings.sunclass_email
         self._password = settings.sunclass_password
@@ -67,7 +68,7 @@ class SunclassScraper(BaseFetcher):
         self._property_label = settings.property_label
         self._headless = settings.playwright_headless
         self._slowmo = settings.playwright_slowmo
-        self._screenshot_dir = settings.state_db_path.replace("state.db", "")
+        self._screenshot_dir = Path(settings.state_db_path).parent
 
     @property
     def source_name(self) -> str:
@@ -121,9 +122,7 @@ class SunclassScraper(BaseFetcher):
 
     def _save_screenshot(self, page, label: str) -> None:
         """Save a screenshot to data/ for post-mortem debugging."""
-        from pathlib import Path
-        from datetime import datetime
-        path = Path(self._screenshot_dir) / f"screenshot_{label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        path = self._screenshot_dir / f"screenshot_{label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         try:
             page.screenshot(path=str(path), full_page=True)
             logger.info("Screenshot saved: %s", path)
@@ -227,7 +226,5 @@ class SunclassScraper(BaseFetcher):
             check_in=check_in,
             check_out=check_out,
             guest_name=guest_name,
-            num_guests=None,
             property_label=self._property_label,
-            raw_summary=None,
         )

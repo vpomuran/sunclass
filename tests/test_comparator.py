@@ -1,6 +1,5 @@
 from datetime import date
 
-import pytest
 
 from sunclass.comparator import match_reservations
 from sunclass.models import Reservation, DiscrepancyKind
@@ -14,9 +13,7 @@ def _ical(uid, ci, co):
         check_in=ci,
         check_out=co,
         guest_name=None,
-        num_guests=None,
         property_label=None,
-        raw_summary="CLOSED - Not available",
     )
 
 
@@ -28,9 +25,7 @@ def _sunclass(uid, ci, co, name="Jan Janssen"):
         check_in=ci,
         check_out=co,
         guest_name=name,
-        num_guests=None,
         property_label=None,
-        raw_summary=None,
     )
 
 
