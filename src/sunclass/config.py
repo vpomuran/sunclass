@@ -35,6 +35,10 @@ class Settings:
     # Urgency window: discrepancies with check_in within this many days always re-alert
     critical_window_days: int
 
+    # Airbnb iCal quirk filters
+    airbnb_min_checkin_days: int      # skip near-term blocks (prevents "0 days" noise)
+    airbnb_phantom_horizon_days: int  # skip 1-day blocks at Airbnb's 365-day max horizon
+
     # Playwright debug options
     playwright_headless: bool    # False = show browser window
     playwright_slowmo: int       # milliseconds between each action (0 = no delay)
@@ -92,4 +96,6 @@ class Settings:
             critical_window_days=int(os.getenv("CRITICAL_WINDOW_DAYS", "30")),
             playwright_headless=os.getenv("PLAYWRIGHT_HEADLESS", "true").lower() != "false",
             playwright_slowmo=int(os.getenv("PLAYWRIGHT_SLOWMO", "0")),
+            airbnb_min_checkin_days=int(os.getenv("AIRBNB_MIN_CHECKIN_DAYS", "1")),
+            airbnb_phantom_horizon_days=int(os.getenv("AIRBNB_PHANTOM_HORIZON_DAYS", "362")),
         )

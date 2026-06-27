@@ -24,6 +24,26 @@ EXIT_FETCH_ERROR = 3
 logger = logging.getLogger(__name__)
 
 
+def _filter_airbnb_quirks(
+    reservations: list[Reservation], today: date, settings: Settings
+) -> list[Reservation]:
+    kept = []
+    for r in reservations:
+        if "airbnb" not in r.source.lower():
+            kept.append(r)
+            continue
+        days_until = (r.check_in - today).days
+        if days_until < settings.airbnb_min_checkin_days:
+            logger.debug("Filtered Airbnb near-term block (%d days out): %s", days_until, r)
+            continue
+        duration = (r.check_out - r.check_in).days
+        if duration == 1 and days_until >= settings.airbnb_phantom_horizon_days:
+            logger.debug("Filtered Airbnb phantom horizon block (%d days out): %s", days_until, r)
+            continue
+        kept.append(r)
+    return kept
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sunclass-monitor",
@@ -160,6 +180,7 @@ def main() -> None:
 
     # ── Filter to future reservations only ─────────────────────────────────
     ical_future = [r for r in ical_reservations if r.check_in >= today]
+    ical_future = _filter_airbnb_quirks(ical_future, today, settings)
     scraped_future = [r for r in scraped if r.check_in >= today]
 
     logger.info(

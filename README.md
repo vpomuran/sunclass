@@ -144,6 +144,8 @@ TELEGRAM_CHAT_ID=-100123456789
 | `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `PLAYWRIGHT_HEADLESS` | `true` | Set to `false` to open a visible browser window (useful for debugging login issues) |
 | `PLAYWRIGHT_SLOWMO` | `0` | Slow down each browser action by this many milliseconds |
+| `AIRBNB_MIN_CHECKIN_DAYS` | `1` | Skip Airbnb iCal entries whose check-in is fewer than N days away — prevents "0 days until arrival" noise from Airbnb's pre-booking buffer |
+| `AIRBNB_PHANTOM_HORIZON_DAYS` | `362` | Skip 1-day Airbnb iCal entries whose check-in is N or more days away — filters the rolling phantom block Airbnb places at its 365-day max booking horizon |
 
 ---
 
